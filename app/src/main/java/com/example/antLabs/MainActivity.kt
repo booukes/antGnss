@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.rememberNavController
 import com.example.antLabs.routes.AppRouteGraph
 import com.example.antLabs.ui.theme.AntLabsTheme
@@ -22,7 +23,7 @@ class MainActivity : ComponentActivity() {
             AntLabsTheme {
                 Box(modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(Color.Black)
                 )
                 val navController = rememberNavController()
                 AppRouteGraph(navController = navController)

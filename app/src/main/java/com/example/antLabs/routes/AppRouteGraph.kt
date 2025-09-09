@@ -5,6 +5,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.antLabs.engine.GnssPermHandler
+import com.example.antLabs.views.Accelerometer
+import com.example.antLabs.views.Earthquake
 import com.example.antLabs.views.GNSS
 import com.example.antLabs.views.Gyroscope
 import com.example.antLabs.views.Magnetometer
@@ -15,6 +17,8 @@ object Routes {
     const val GYRO = "gyro"
     const val MAGNETO = "magneto"
     const val GNSS_ROUTE = "gnss"
+    const val ACCEL = "accel"
+    const val EARTH = "earth"
 }
 
 @Composable
@@ -28,6 +32,12 @@ fun AppRouteGraph(navController: NavHostController) {
         }
         composable(Routes.MAGNETO) {
             Magnetometer()
+        }
+        composable(Routes.ACCEL) {
+            Accelerometer()
+        }
+        composable(Routes.EARTH){
+            Earthquake()
         }
         composable(Routes.GNSS_ROUTE) {
             // wrap your GNSS screen with the permission handler
