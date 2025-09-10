@@ -1,5 +1,6 @@
 package com.example.antLabs.routes
 
+import GNSSInfo
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -19,31 +20,31 @@ object Routes {
     const val GNSS_ROUTE = "gnss"
     const val ACCEL = "accel"
     const val EARTH = "earth"
+    const val GNSSINFO = "GNSSInfo" // new route
 }
+
 
 @Composable
 fun AppRouteGraph(navController: NavHostController) {
     NavHost(navController = navController, startDestination = Routes.MENU) {
-        composable(Routes.MENU) {
-            Menu(navController)
-        }
-        composable(Routes.GYRO) {
-            Gyroscope()
-        }
-        composable(Routes.MAGNETO) {
-            Magnetometer()
-        }
-        composable(Routes.ACCEL) {
-            Accelerometer()
-        }
-        composable(Routes.EARTH){
-            Earthquake()
-        }
+        composable(Routes.MENU) { Menu(navController) }
+        composable(Routes.GYRO) { Gyroscope() }
+        composable(Routes.MAGNETO) { Magnetometer() }
+        composable(Routes.ACCEL) { Accelerometer() }
+        composable(Routes.EARTH) { Earthquake() }
+
         composable(Routes.GNSS_ROUTE) {
-            // wrap your GNSS screen with the permission handler
             GnssPermHandler {
-                GNSS()
+                GNSS(
+                    onInfoClick = { navController.navigate(Routes.GNSSINFO) } // hook info button
+                )
             }
+        }
+
+        composable(Routes.GNSSINFO) {
+            GNSSInfo(
+                onBack = { navController.popBackStack() } // back navigation
+            )
         }
     }
 }

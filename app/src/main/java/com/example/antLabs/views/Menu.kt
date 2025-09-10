@@ -19,10 +19,10 @@ import com.example.antLabs.ui.theme.TextPrimary
 @Composable
 fun Menu(navController: NavController) {
     val menuItems = listOf(
+        "GNSS Dashboard" to Routes.GNSS_ROUTE,
         "Gyroscope" to Routes.GYRO,
         "Magnetometer" to Routes.MAGNETO,
         "Accelerometer" to Routes.ACCEL,
-        "GNSS (Experimental)" to Routes.GNSS_ROUTE,
         "Earthquake (Experimental)" to Routes.EARTH
     )
 

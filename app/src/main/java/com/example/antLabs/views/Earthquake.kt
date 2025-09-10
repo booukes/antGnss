@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import io.ktor.client.*
-import io.ktor.client.engine.cio.*
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
@@ -163,7 +163,7 @@ fun Earthquake() {
 
 // --- Suspend function to fetch earthquakes ---
 suspend fun fetchEarthquakes(): List<EarthquakeFeature> = withContext(Dispatchers.IO) {
-    val client = HttpClient(CIO)
+    val client = HttpClient(OkHttp)
     try {
         val response: String = client.get(
             "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"
