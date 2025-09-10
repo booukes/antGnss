@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -15,7 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.antLabs.routes.Routes
-import com.example.antLabs.ui.theme.DarkBackground
 import com.example.antLabs.ui.theme.TextPrimary
 
 @Composable
@@ -51,7 +49,6 @@ fun Menu(navController: NavController) {
                 )
             }
 
-            // Divider between items
             if (index < menuItems.lastIndex) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
