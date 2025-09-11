@@ -15,6 +15,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +27,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +41,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -136,7 +143,71 @@ val gpsSvidToNorad = mapOf(
     55 to 28361,  // NAVSTAR 55 (USA 178)
     56 to 28474   // NAVSTAR 56 (USA 180)
 )
+val beidouSvidToNorad = mapOf(
+    1 to 26599,
+    2 to 26643,
+    3 to 27813,
+    4 to 30323,
+    5 to 31115,
+    6 to 34779,
+    7 to 36287,
+    8 to 36590,
+    9 to 36828,
+    10 to 37210,
+    11 to 37256,
+    12 to 37384,
+    13 to 37763,
+    14 to 37948,
+    15 to 38091,
+    16 to 38250,
+    17 to 38251,
+    18 to 38774,
+    19 to 38775,
+    20 to 38953,
+    21 to 40549,
+    22 to 40748,
+    23 to 40749,
+    24 to 40938,
+    25 to 41315,
+    26 to 41434,
+    27 to 41586,
+    28 to 43001,
+    29 to 43002,
+    30 to 43107,
+    31 to 43108,
+    32 to 43207,
+    33 to 43208,
+    34 to 43245,
+    35 to 43246,
+    36 to 43539,
+    37 to 43581,
+    38 to 43582,
+    39 to 43602,
+    40 to 43603,
+    41 to 43647,
+    42 to 43648,
+    43 to 43683,
+    44 to 43706,
+    45 to 43707,
+    46 to 44231,
+    47 to 44542,
+    48 to 44543,
+    49 to 44793,
+    50 to 44794,
+    51 to 44864,
+    52 to 44865,
+    53 to 45344,
+    54 to 45807,
+    55 to 58654,
+    56 to 58655,
+    57 to 61186,
+    58 to 61187
+)
 
+data class SatelliteUIHelper(
+    val name: String,
+    val distanceKm: Double
+)
 @Serializable
 data class SatellitePosition(
     val satlatitude: Double,
@@ -145,8 +216,14 @@ data class SatellitePosition(
 )
 
 @Serializable
+data class SatelliteInfo(
+    val satname: String,
+    val satid: Int,
+    val transactionscount: Int
+)
+@Serializable
 data class SatelliteResponse(
-    val info: JsonObject? = null,
+    val info: SatelliteInfo,
     val positions: List<SatellitePosition>
 )
 
@@ -196,7 +273,7 @@ fun GNSS(onInfoClick: () -> Unit) {
             != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
-       fetchSatelliteDistance(context, 1, 0.0, "P5SBR8-AMPS6R-XNXR4U-5KD3")
+       fetchSatelliteDistance(context, 1, 1,0.0)
     }
 
     DisposableEffect(Unit) {
@@ -369,16 +446,19 @@ fun GNSS(onInfoClick: () -> Unit) {
 
         // Satellite info
         LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            items(satellites.filter { it.cn0 > 0 }) { sat ->
+            items(satellites) { sat ->
                 val qualityColor = when {
                     sat.cn0 >= 30 -> Color.Green
                     sat.cn0 >= 25 -> Color.Yellow
                     sat.cn0 >= 20 -> Color(0xFFFF5722)
-                    else -> Color.Red
+                    sat.cn0 > 0 -> Color.Red
+                    else -> {
+                        Color.DarkGray
+                    }
                 }
 
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).border(width = 3.dp, color = qualityColor, shape = RoundedCornerShape(8.dp)), // <-- border,
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(8.dp)) {
@@ -390,9 +470,7 @@ fun GNSS(onInfoClick: () -> Unit) {
                         Text("Used in fix?: ${if (sat.fix) "Yes" else "No"}", color = TextPrimary)
                         Text("Doppler: ${"%.2f".format(sat.doppler)} m/s", color = TextPrimary)
                         Text("Pseudorange uncertainty: ${"%.2f".format(sat.pseudorangeUncertainty)} m/s", color = TextPrimary)
-                        if(sat.constellation == 1){
-                            SatelliteDistanceText(context, sat.svid, "P5SBR8-AMPS6R-XNXR4U-5KD3")
-                        }
+                        SatelliteDistanceText(context, sat.svid, sat.constellation)
 
                     }
                 }
@@ -405,6 +483,15 @@ fun GNSS(onInfoClick: () -> Unit) {
 @Composable
 fun SkyMapMini(satellites: List<SatelliteInfoExtended>, label: String,
                directionPaint: android.graphics.Paint, satPaint: android.graphics.Paint) {
+    val pulse = rememberInfiniteTransition()
+    val scale by pulse.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
     Box(modifier = Modifier.size(150.dp)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = Offset(size.width / 2, size.height / 2)
@@ -444,7 +531,12 @@ fun SkyMapMini(satellites: List<SatelliteInfoExtended>, label: String,
                     else -> Color.Red
                 }
                 val dotSize = 3f + (sat.cn0.toFloat() / 10f)
-                if (sat.fix) drawCircle(color, dotSize, Offset(x, y)) else drawCircle(color, dotSize, Offset(x, y), style = Stroke(width = 2f))
+                if (sat.fix) {
+                    // Pulsing effect for satellites in fix
+                    drawCircle(color.copy(alpha = 0.7f), dotSize * scale, Offset(x, y))
+                } else {
+                    drawCircle(color, dotSize, Offset(x, y), style = Stroke(width = 2f))
+                }
                 drawContext.canvas.nativeCanvas.drawText("${sat.svid}", x+6, y-6, satPaint)
             }
 
@@ -523,10 +615,20 @@ fun constellationName(constellation: Int): String {
 suspend fun fetchSatelliteDistance(
     context: Context,
     svid: Int,
+    constellation: Int,
     userAltKm: Double = 0.0,
-    apiKey: String
-): Double? {
-    val satId = gpsSvidToNorad[svid] ?: throw IllegalArgumentException("Unknown SVID: $svid")
+): SatelliteUIHelper? {
+    var satId: Int = 1
+    if (svid == 7) return null
+    if(constellation != 1 && constellation != 5) return null
+    if(constellation == 1) {
+        satId = gpsSvidToNorad[svid] ?: return null
+    } else if(constellation == 5){
+        satId = beidouSvidToNorad[svid] ?: return null
+    } else {
+        return null
+    }
+
 
     // --- Get device location ---
     val fusedLocationClient: FusedLocationProviderClient =
@@ -535,7 +637,7 @@ suspend fun fetchSatelliteDistance(
     val location: Location? = try {
         fusedLocationClient.lastLocation.await()
     } catch (e: Exception) {
-        Log.e("SAT_DIST", "Error getting location: ${e.message}")
+        Log.e("SAT_DIST", "Error what wigetting location: ${e.message}")
         return null
     }
 
@@ -553,42 +655,48 @@ suspend fun fetchSatelliteDistance(
         }
     }
 
-    try {
-        val url =
-            "https://api.n2yo.com/rest/v1/satellite/positions/$satId/$userLat/$userLon/$userAltKm/1/&apiKey=$apiKey"
-
+    return try {
+        val url = "https://api.n2yo.com/rest/v1/satellite/positions/$satId/${location.latitude}/${location.longitude}/$userAltKm/1/&apiKey=P5SBR8-AMPS6R-XNXR4U-5KD3"
         val response: SatelliteResponse = client.get(url).body()
-
-        response.positions.forEach { sat ->
+        val satname = response.info.satname
+        response.positions.firstOrNull()?.let { pos ->
             val distanceKm = distanceToSatellite(
-                sat.satlatitude, sat.satlongitude, sat.sataltitude,
-                userLat, userLon, userAltKm
+                pos.satlatitude, pos.satlongitude, pos.sataltitude,
+                location.latitude, location.longitude, userAltKm
             )
-            Log.d("SAT_DIST", "Distance to satellite $satId: %.2f km".format(distanceKm))
-            return distanceKm
+            SatelliteUIHelper(satname, distanceKm)
         }
     } catch (e: Exception) {
-        Log.e("SAT_DIST", "Error fetching satellite: ${e.message}")
-        return null
+        null
     } finally {
         client.close()
     }
-    return null
 }
 
 @Composable
-fun SatelliteDistanceText(context: Context, svid: Int, apiKey: String) {
+fun SatelliteDistanceText(context: Context, svid: Int, constellation: Int) {
     var distanceKm by remember { mutableStateOf<Double?>(null) }
+    var name by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(svid) {
-        distanceKm = fetchSatelliteDistance(context, svid, 0.0, apiKey)
+        val satelliteUiHelper: SatelliteUIHelper? = fetchSatelliteDistance(context, svid, constellation,0.0)
+        distanceKm = satelliteUiHelper?.distanceKm
+        name = satelliteUiHelper?.name
     }
 
     Text(
         text = if (distanceKm != null) {
             "Distance: %.2f km".format(distanceKm)
         } else {
-            "Calculating distance..."
+            "Cannot perform distance calculation."
+        },
+        color = TextPrimary
+    )
+    Text(
+        text = if (name != null) {
+            "Satellite name: $name"
+        } else {
+            "Name not available."
         },
         color = TextPrimary
     )
