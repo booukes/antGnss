@@ -14,24 +14,14 @@ import com.example.antLabs.views.Magnetometer
 import com.example.antLabs.views.Menu
 
 object Routes {
-    const val MENU = "menu"
-    const val GYRO = "gyro"
-    const val MAGNETO = "magneto"
     const val GNSS_ROUTE = "gnss"
-    const val ACCEL = "accel"
-    const val EARTH = "earth"
     const val GNSSINFO = "GNSSInfo" // new route
 }
 
 
 @Composable
 fun AppRouteGraph(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Routes.MENU) {
-        composable(Routes.MENU) { Menu(navController) }
-        composable(Routes.GYRO) { Gyroscope() }
-        composable(Routes.MAGNETO) { Magnetometer() }
-        composable(Routes.ACCEL) { Accelerometer() }
-        composable(Routes.EARTH) { Earthquake() }
+    NavHost(navController = navController, startDestination = Routes.GNSS_ROUTE) {
 
         composable(Routes.GNSS_ROUTE) {
             GnssPermHandler {

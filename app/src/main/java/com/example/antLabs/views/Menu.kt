@@ -20,10 +20,6 @@ import com.example.antLabs.ui.theme.TextPrimary
 fun Menu(navController: NavController) {
     val menuItems = listOf(
         "GNSS Dashboard" to Routes.GNSS_ROUTE,
-        "Gyroscope" to Routes.GYRO,
-        "Magnetometer" to Routes.MAGNETO,
-        "Accelerometer" to Routes.ACCEL,
-        "Earthquake (Experimental)" to Routes.EARTH
     )
 
     Column(
