@@ -1,11 +1,4 @@
-import java.util.Properties
-import java.io.File
 
-val localProps = Properties().apply {
-    load(File(rootProject.projectDir, "local.properties").inputStream())
-}
-val N2YO_API_KEY = localProps.getProperty("N2YO_API_KEY")
-    ?: throw GradleException("N2YO_API_KEY not found in local.properties")
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -24,7 +17,6 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "N2YO_API_KEY", "\"$N2YO_API_KEY\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -76,6 +68,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.play.services.location)
+    implementation(libs.androidx.foundation)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
