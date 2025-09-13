@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.antLabs.engine.GnssPermHandler
+import com.example.antLabs.perms.GNSSPermHandler
 import com.example.antLabs.views.GNSS
 
 object Routes {
@@ -19,7 +19,7 @@ fun AppRouteGraph(navController: NavHostController) {
     NavHost(navController = navController, startDestination = Routes.GNSS_ROUTE) {
 
         composable(Routes.GNSS_ROUTE) {
-            GnssPermHandler {
+            GNSSPermHandler {
                 GNSS(
                     onInfoClick = { navController.navigate(Routes.GNSSINFO) } // hook info button
                 )

@@ -8,7 +8,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.GnssMeasurementsEvent
 import android.location.GnssStatus
-import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.util.Log
@@ -75,50 +74,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.antLabs.network.ApiService.fetchSatelliteDistance
 import com.example.antLabs.ui.theme.TextPrimary
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
-import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.pow
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 // --- Data classes ---
-val gpsSvidToNorad = mapOf(
-    1 to 10684, 2 to 10893, 3 to 11054, 4 to 11141, 5 to 11690,
-    6 to 11783, 8 to 14189, 9 to 15039, 10 to 15271, 11 to 16129,
-    13 to 19802, 14 to 20061, 15 to 20185, 16 to 20302, 17 to 20361,
-    18 to 20452, 19 to 20533, 20 to 20724, 21 to 20830, 22 to 20959,
-    23 to 21552, 24 to 21890, 25 to 21930, 26 to 22014, 27 to 22108,
-    28 to 22231, 29 to 22275, 30 to 22446, 31 to 22581, 32 to 22657,
-    33 to 22700, 34 to 22779, 35 to 22877, 36 to 23027, 37 to 23833,
-    38 to 23953, 39 to 24320, 43 to 24876, 44 to 25030, 46 to 25933,
-    47 to 26360, 48 to 26407, 49 to 26605, 50 to 26690, 51 to 27663,
-    52 to 27704, 53 to 28129, 54 to 28190, 55 to 28361, 56 to 28474
-)
-val beidouSvidToNorad = mapOf(
-    1 to 26599, 2 to 26643, 3 to 27813, 4 to 30323, 5 to 31115, 6 to 34779,
-    7 to 36287, 8 to 36590, 9 to 36828, 10 to 37210, 11 to 37256, 12 to 37384,
-    13 to 37763, 14 to 37948, 15 to 38091, 16 to 38250, 17 to 38251, 18 to 38774,
-    19 to 38775, 20 to 38953, 21 to 40549, 22 to 40748, 23 to 40749, 24 to 40938,
-    25 to 41315, 26 to 41434, 27 to 41586, 28 to 43001, 29 to 43002, 30 to 43107,
-    31 to 43108, 32 to 43207, 33 to 43208, 34 to 43245, 35 to 43246, 36 to 43539,
-    37 to 43581, 38 to 43582, 39 to 43602, 40 to 43603, 41 to 43647, 42 to 43648,
-    43 to 43683, 44 to 43706, 45 to 43707, 46 to 44231, 47 to 44542, 48 to 44543,
-    49 to 44793, 50 to 44794, 51 to 44864, 52 to 44865, 53 to 45344, 54 to 45807,
-    55 to 58654, 56 to 58655, 57 to 61186, 58 to 61187
-)
 
 data class SatelliteUIHelper(val name: String, val distanceKm: Double, val eclipsed: Boolean)
 
@@ -653,70 +617,6 @@ fun constellationName(constellation: Int): String {
 }
 
 // --- Api call ---
-@SuppressLint("MissingPermission")
-suspend fun fetchSatelliteDistance(
-    context: Context,
-    svid: Int,
-    constellation: Int,
-    userAltKm: Double = 0.0,
-): SatelliteUIHelper? {
-    if (svid == 7) return null
-    if (constellation != 1 && constellation != 5) return null
-    val satId: Int = if (constellation == 1) {
-        gpsSvidToNorad[svid] ?: return null
-    } else {
-        beidouSvidToNorad[svid] ?: return null
-    }
-
-
-    // --- Get device location ---
-    val fusedLocationClient: FusedLocationProviderClient =
-        LocationServices.getFusedLocationProviderClient(context)
-
-    val location: Location? = try {
-        fusedLocationClient.lastLocation.await()
-    } catch (e: Exception) {
-        Log.e("SAT_DIST", "Error what wigetting location: ${e.message}")
-        return null
-    }
-
-    if (location == null) {
-        Log.e("SAT_DIST", "Location is null. Cannot fetch satellite distance.")
-        return null
-    }
-
-    val client = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json { ignoreUnknownKeys = true })
-        }
-    }
-
-    return try {
-        val url =
-            "https://api.n2yo.com/rest/v1/satellite/positions/$satId/${location.latitude}/${location.longitude}/$userAltKm/1/&apiKey=P5SBR8-AMPS6R-XNXR4U-5KD3"
-        Log.d("APIRQ", "$url")
-        var response: SatelliteResponse = client.get(url).body()
-        Log.d("APIRSP", response.toString())
-        /*val rawResponse: HttpResponse = client.get(url)
-        val textResponse: String = rawResponse.bodyAsText()
-        response = Json.decodeFromString<SatelliteResponse>(textResponse)
-        Log.d("RSPFMT", response.toString())*/
-        val satname = response.info.satname
-        val eclipsed = response.positions.firstOrNull()?.eclipsed ?: true
-        response.positions.firstOrNull()?.let { pos ->
-            val distanceKm = distanceToSatellite(
-                pos.satlatitude, pos.satlongitude, pos.sataltitude,
-                location.latitude, location.longitude, userAltKm
-            )
-            SatelliteUIHelper(satname, distanceKm, eclipsed)
-        }
-    }  catch (e: Exception) {
-            Log.e("SAT_DIST", "Network call failed", e)
-            null
-    } finally {
-        client.close()
-    }
-}
 
 @Composable
 fun SatelliteDistanceText(context: Context, svid: Int, constellation: Int) {
@@ -725,7 +625,7 @@ fun SatelliteDistanceText(context: Context, svid: Int, constellation: Int) {
     var eclipsed by remember { mutableStateOf<Boolean?>(null) }
     var error by remember { mutableStateOf(false) }
 
-    LaunchedEffect(svid) {
+    LaunchedEffect(svid) @androidx.annotation.RequiresPermission(allOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION]) {
         val satelliteUiHelper: SatelliteUIHelper? =
             fetchSatelliteDistance(context, svid, constellation, 0.0)
         if (satelliteUiHelper == null) {
@@ -754,32 +654,4 @@ fun SatelliteDistanceText(context: Context, svid: Int, constellation: Int) {
         text = eclipsed?.let { "Eclipsed?: ${if(it) "Yes" else "No"}" } ?: "",
         color = TextPrimary
     )
-}
-
-
-// calculate 3D distance using euclidian model
-fun distanceToSatellite(
-    satLat: Double, satLon: Double, satAltKm: Double,
-    userLat: Double, userLon: Double, userAltKm: Double = 0.0
-): Double {
-    val r = 6371.0 // Earth radius in km
-    val toRad = Math.PI / 180
-
-    fun toECEF(lat: Double, lon: Double, altKm: Double): Triple<Double, Double, Double> {
-        val phi = lat * toRad
-        val lambda = lon * toRad
-        val cosPhi = cos(phi)
-        val sinPhi = sin(phi)
-        val cosLambda = cos(lambda)
-        val sinLambda = sin(lambda)
-        val x = (r + altKm) * cosPhi * cosLambda
-        val y = (r + altKm) * cosPhi * sinLambda
-        val z = (r + altKm) * sinPhi
-        return Triple(x, y, z)
-    }
-
-    val (sx, sy, sz) = toECEF(satLat, satLon, satAltKm)
-    val (ux, uy, uz) = toECEF(userLat, userLon, userAltKm)
-
-    return sqrt((sx - ux).pow(2) + (sy - uy).pow(2) + (sz - uz).pow(2))
 }
