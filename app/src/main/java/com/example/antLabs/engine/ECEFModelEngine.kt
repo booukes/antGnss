@@ -10,7 +10,7 @@ fun ECEFModelEngine(
     satLat: Double, satLon: Double, satAltKm: Double,
     userLat: Double, userLon: Double, userAltKm: Double = 0.0
 ): Double {
-    val r = 6371.0 // Earth radius in km
+    val r = 6371.0
     val toRad = Math.PI / 180
 
     fun toECEF(lat: Double, lon: Double, altKm: Double): Triple<Double, Double, Double> {

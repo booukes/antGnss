@@ -6,10 +6,6 @@ import android.Manifest
 import android.R.attr.radius
 import android.annotation.SuppressLint
 import android.content.Context
-import android.location.GnssMeasurementsEvent
-import android.location.GnssStatus
-import android.location.LocationListener
-import android.location.LocationManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,44 +71,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.antLabs.engine.GNSSEngine
+import com.example.antLabs.engine.GNSSReceiverData
 import com.example.antLabs.network.ApiService.fetchSatelliteDistance
 import com.example.antLabs.ui.theme.TextPrimary
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
-// --- Data classes ---
+// --- Data classes (UI / API specific) ---
 
-data class SatelliteUIHelper(val name: String, val distanceKm: Double, val eclipsed: Boolean)
+data class ApiResponseGroup(val name: String, val distanceKm: Double, val eclipsed: Boolean)
 
-@Serializable
-data class SatellitePosition(
-    val satlatitude: Double,
-    val satlongitude: Double,
-    val sataltitude: Double,
-    val eclipsed: Boolean
-)
 
-@Serializable
-data class SatelliteInfo(val satname: String, val satid: Int, val transactionscount: Int)
-
-@Serializable
-data class SatelliteResponse(val info: SatelliteInfo, val positions: List<SatellitePosition>)
-
-data class SatelliteInfoExtended(
-    val svid: Int,
-    val constellation: Int,
-    val cn0: Double,
-    val fix: Boolean,
-    val elevation: Float,
-    val azimuth: Float,
-    val doppler: Double,
-    val pseudorangeUncertainty: Double,
-    var distanceKm: Double = 0.0,
-    val lastPing: Long = System.currentTimeMillis()
-)
 
 // --- Main Composable ---
 @SuppressLint("MissingPermission")
@@ -119,10 +92,9 @@ data class SatelliteInfoExtended(
 fun GNSS(onInfoClick: () -> Unit) {
     var selectedSvid by remember { mutableStateOf<Int?>(null) }
     val context = LocalContext.current
-    val locationManager = context.getSystemService(LocationManager::class.java)
-    var satellites by remember { mutableStateOf(listOf<SatelliteInfoExtended>()) }
     var showSplitView by remember { mutableStateOf(false) }
-
+    val gnssEngine = remember { GNSSEngine(context) }
+    val satellites by gnssEngine.satellites.collectAsState()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -136,7 +108,12 @@ fun GNSS(onInfoClick: () -> Unit) {
     }
 
     val permissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> }
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                // If permission is granted, start listening
+                gnssEngine.registerCallbacks()
+            }
+        }
 
     LaunchedEffect(Unit) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
@@ -144,77 +121,15 @@ fun GNSS(onInfoClick: () -> Unit) {
         ) {
             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
-        fetchSatelliteDistance(context, 1, 1, 0.0)
     }
 
-    DisposableEffect(Unit) {
-        val gnssStatusCallback = object : GnssStatus.Callback() {
-            override fun onSatelliteStatusChanged(status: GnssStatus) {
-                val list = satellites.toMutableList()
-                for (i in 0 until status.satelliteCount) {
-                    val idx = list.indexOfFirst { it.svid == status.getSvid(i) }
-                    val sat = SatelliteInfoExtended(
-                        svid = status.getSvid(i),
-                        constellation = status.getConstellationType(i),
-                        cn0 = status.getCn0DbHz(i).toDouble(),
-                        elevation = status.getElevationDegrees(i),
-                        azimuth = status.getAzimuthDegrees(i),
-                        fix = status.usedInFix(i),
-                        doppler = list.getOrNull(idx)?.doppler ?: 0.0,
-                        pseudorangeUncertainty = list.getOrNull(idx)?.pseudorangeUncertainty ?: 0.0,
-                        lastPing = System.currentTimeMillis()
-                    )
-                    if (idx >= 0) list[idx] = sat else list.add(sat)
-                }
-                satellites = list
-            }
-        }
-
-        val gnssMeasurementsCallback = object : GnssMeasurementsEvent.Callback() {
-            override fun onGnssMeasurementsReceived(event: GnssMeasurementsEvent) {
-                val list = satellites.toMutableList()
-                for (measurement in event.measurements) {
-                    val idx = list.indexOfFirst { it.svid == measurement.svid }
-                    val doppler = measurement.pseudorangeRateMetersPerSecond
-                    val velocity = measurement.pseudorangeRateUncertaintyMetersPerSecond
-                    if (idx >= 0) {
-                        val sat = list[idx]
-                        list[idx] = sat.copy(doppler = doppler, pseudorangeUncertainty = velocity)
-                    } else {
-                        list.add(
-                            SatelliteInfoExtended(
-                                svid = measurement.svid,
-                                constellation = measurement.constellationType,
-                                cn0 = measurement.cn0DbHz,
-                                fix = false,
-                                elevation = 0f,
-                                azimuth = 0f,
-                                doppler = doppler,
-                                pseudorangeUncertainty = velocity
-                            )
-                        )
-                    }
-                }
-                satellites = list
-            }
-        }
-
-        val locationListener = LocationListener { }
-        locationManager.registerGnssStatusCallback(gnssStatusCallback)
-        locationManager.requestLocationUpdates(
-            LocationManager.GPS_PROVIDER,
-            100L,
-            0f,
-            locationListener
-        )
-        locationManager.registerGnssMeasurementsCallback(gnssMeasurementsCallback)
-
+    DisposableEffect(gnssEngine) {
+        gnssEngine.registerCallbacks()
         onDispose {
-            locationManager.removeUpdates(locationListener)
-            locationManager.unregisterGnssStatusCallback(gnssStatusCallback)
-            locationManager.unregisterGnssMeasurementsCallback(gnssMeasurementsCallback)
+            gnssEngine.unregisterCallbacks()
         }
     }
+
 
     Column(modifier = Modifier
         .fillMaxSize()
@@ -419,7 +334,7 @@ fun GNSS(onInfoClick: () -> Unit) {
                             "Pseudorange uncertainty: ${"%.2f".format(sat.pseudorangeUncertainty)} m/s",
                             color = TextPrimary
                         )
-                        SatelliteDistanceText(context, sat.svid, sat.constellation)
+                        APIBridge(context, sat.svid, sat.constellation)
                     }
                 }
             }
@@ -427,10 +342,13 @@ fun GNSS(onInfoClick: () -> Unit) {
     }
 }
 
-// SkyMapMini
+// SkyMapMini, SkyMapFull, constellationName and SatelliteDistanceText functions remain unchanged.
+// ... (Paste the rest of your original code from SkyMapMini onwards here)
+// --- Helper Composables and Functions ---
+
 @Composable
 fun SkyMapMini(
-    satellites: List<SatelliteInfoExtended>, label: String,
+    satellites: List<GNSSReceiverData>, label: String,
     directionPaint: android.graphics.Paint, satPaint: android.graphics.Paint
 ) {
     Box(modifier = Modifier.size(150.dp)) {
@@ -496,14 +414,13 @@ fun SkyMapMini(
     }
 }
 
-// SkyMapFull
 @Composable
 fun SkyMapFull(
-    satellites: List<SatelliteInfoExtended>,
+    satellites: List<GNSSReceiverData>,
     directionPaint: android.graphics.Paint,
     satPaint: android.graphics.Paint,
     selectedSvid: Int?,
-    onSvidSelected: (Int) -> Unit // Callback for updating selection
+    onSvidSelected: (Int) -> Unit
 ) {
     val pulse = rememberInfiniteTransition()
     val scale by pulse.animateFloat(
@@ -520,7 +437,6 @@ fun SkyMapFull(
             .fillMaxSize()
             .pointerInput(satellites) {
                 detectTapGestures { tapOffset ->
-                    // Find the closest satellite to the tap
                     val clickedSat = satellites.minByOrNull { sat ->
                         val elRad = Math.toRadians(90.0 - sat.elevation)
                         val azRad = Math.toRadians(sat.azimuth.toDouble())
@@ -542,7 +458,6 @@ fun SkyMapFull(
             val center = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 16.dp.toPx()
 
-            // setting up gradient
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(Color(0xFF0D1A33), Color(0xFF0B0C1A), Color.Black),
@@ -552,7 +467,6 @@ fun SkyMapFull(
                 size = size
             )
 
-            // concentrics drawing
             for (i in 1..3) drawCircle(
                 Color.LightGray.copy(alpha = 0.4f),
                 radius * i / 3,
@@ -560,7 +474,6 @@ fun SkyMapFull(
                 style = Stroke(width = 1.5f)
             )
 
-            // cardinals drawing
             val directions = listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
             for (i in directions.indices) {
                 val angle = Math.toRadians(i * 45.0)
@@ -575,7 +488,6 @@ fun SkyMapFull(
                 )
             }
 
-            // sat drawing
             satellites.filter { it.cn0 > 0 }.forEach { sat ->
                 val elRad = Math.toRadians(90.0 - sat.elevation)
                 val azRad = Math.toRadians(sat.azimuth.toDouble())
@@ -616,25 +528,28 @@ fun constellationName(constellation: Int): String {
     }
 }
 
-// --- Api call ---
-
 @Composable
-fun SatelliteDistanceText(context: Context, svid: Int, constellation: Int) {
+fun APIBridge(context: Context, svid: Int, constellation: Int) {
     var distanceKm by remember { mutableStateOf<Double?>(null) }
     var name by remember { mutableStateOf<String?>(null) }
     var eclipsed by remember { mutableStateOf<Boolean?>(null) }
     var error by remember { mutableStateOf(false) }
 
-    LaunchedEffect(svid) @androidx.annotation.RequiresPermission(allOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION]) {
-        val satelliteUiHelper: SatelliteUIHelper? =
-            fetchSatelliteDistance(context, svid, constellation, 0.0)
-        if (satelliteUiHelper == null) {
+    LaunchedEffect(svid) @androidx.annotation.RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION]) {
+        var APIResponseGroup: ApiResponseGroup? = null
+        try {
+            APIResponseGroup =
+                fetchSatelliteDistance(context, svid, constellation, 0.0)
+        } catch (e: SecurityException){
+            e.printStackTrace()
+        }
+        if (APIResponseGroup == null) {
             error = true
             return@LaunchedEffect
         }
-        distanceKm = satelliteUiHelper.distanceKm
-        name = satelliteUiHelper.name
-        eclipsed = satelliteUiHelper.eclipsed
+        distanceKm = APIResponseGroup.distanceKm
+        name = APIResponseGroup.name
+        eclipsed = APIResponseGroup.eclipsed
     }
 
     if (error) {

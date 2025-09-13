@@ -6,10 +6,10 @@ import android.location.Location
 import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.example.antLabs.engine.ECEFModelEngine
+import com.example.antLabs.engine.SatelliteResponse
 import com.example.antLabs.satmaps.beidouSvidToNorad
 import com.example.antLabs.satmaps.gpsSvidToNorad
-import com.example.antLabs.views.SatelliteResponse
-import com.example.antLabs.views.SatelliteUIHelper
+import com.example.antLabs.views.ApiResponseGroup
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import io.ktor.client.HttpClient
@@ -22,14 +22,14 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.json.Json
 
 object ApiService {
-   // @SuppressLint("MissingPermission")
+    // @SuppressLint("MissingPermission")
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     suspend fun fetchSatelliteDistance(
         context: Context,
         svid: Int,
         constellation: Int,
         userAltKm: Double = 0.0,
-    ): SatelliteUIHelper? {
+    ): ApiResponseGroup? {
         if (svid == 7) return null
         if (constellation != 1 && constellation != 5) return null
         val satId: Int = if (constellation == 1) {
@@ -38,7 +38,6 @@ object ApiService {
             beidouSvidToNorad[svid] ?: return null
         }
 
-
         // --- Get device location ---
         val fusedLocationClient: FusedLocationProviderClient =
             LocationServices.getFusedLocationProviderClient(context)
@@ -46,7 +45,7 @@ object ApiService {
         val location: Location? = try {
             fusedLocationClient.lastLocation.await()
         } catch (e: Exception) {
-            Log.e("SAT_DIST", "Error what wigetting location: ${e.message}")
+            Log.e("SAT_DIST", "Error while getting location: ${e.message}")
             return null
         }
 
@@ -74,9 +73,9 @@ object ApiService {
                     pos.satlatitude, pos.satlongitude, pos.sataltitude,
                     location.latitude, location.longitude, userAltKm
                 )
-                SatelliteUIHelper(satname, distanceKm, eclipsed)
+                ApiResponseGroup(satname, distanceKm, eclipsed)
             }
-        }  catch (e: Exception) {
+        } catch (e: Exception) {
             Log.e("SAT_DIST", "Network call failed", e)
             null
         } finally {
