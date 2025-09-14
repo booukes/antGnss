@@ -135,7 +135,7 @@ fun GNSS(onInfoClick: () -> Unit) {
         .fillMaxSize()
         .systemBarsPadding()
         .padding(16.dp)) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center ) {
             Text(
                 "GNSS Dashboard",
                 style = MaterialTheme.typography.headlineMedium,
@@ -150,8 +150,8 @@ fun GNSS(onInfoClick: () -> Unit) {
             }
         }
 
-        Text("Tracked satellites: ${satellites.count { it.cn0 > 0 }}", color = TextPrimary)
-        Text("Primary satellites: ${satellites.count { it.cn0 > 30 }}", color = TextPrimary)
+        Text("Tracked satellites: ${satellites.count { it.cn0 > 0 }}", color = TextPrimary, modifier=Modifier.align(Alignment.CenterHorizontally))
+        Text("Primary satellites: ${satellites.count { it.cn0 > 30 }}", color = TextPrimary, modifier=Modifier.align(Alignment.CenterHorizontally))
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(
@@ -342,9 +342,6 @@ fun GNSS(onInfoClick: () -> Unit) {
     }
 }
 
-// SkyMapMini, SkyMapFull, constellationName and SatelliteDistanceText functions remain unchanged.
-// ... (Paste the rest of your original code from SkyMapMini onwards here)
-// --- Helper Composables and Functions ---
 
 @Composable
 fun SkyMapMini(
