@@ -1,4 +1,13 @@
 
+import java.util.Properties
+
+// Wklej ten blok na samej górze pliku
+val properties = Properties()
+val localPropertiesFile = project.rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    properties.load(localPropertiesFile.inputStream())
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -12,6 +21,9 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        val APIKEY: String = properties.getProperty("APIKEY") ?: ""
+        buildConfigField("String", "APIKEY", "\"$APIKEY\"")
+
         applicationId = "com.example.antLabs"
         minSdk = 33
         targetSdk = 36

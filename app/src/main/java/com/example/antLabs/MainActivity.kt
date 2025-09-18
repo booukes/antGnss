@@ -29,6 +29,5 @@ class MainActivity : ComponentActivity() {
             }
         }
         Log.d("DBG", "Package name at runtime: ${packageName}")
-
     }
 }

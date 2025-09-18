@@ -1,4 +1,3 @@
-@file:Suppress("DEPRECATION")
 
 package com.example.antLabs.views
 
@@ -417,16 +416,16 @@ fun SkyMapFull(
     directionPaint: android.graphics.Paint,
     satPaint: android.graphics.Paint,
     selectedSvid: Int?,
-    onSvidSelected: (Int) -> Unit
+    onSvidSelected: (Int) -> Unit,
 ) {
-    val pulse = rememberInfiniteTransition()
+    val pulse = rememberInfiniteTransition(label = "pulse")
     val scale by pulse.animateFloat(
         initialValue = 1f,
         targetValue = 1.8f,
         animationSpec = infiniteRepeatable(
             animation = tween(400, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
-        )
+        ), label = "scale"
     )
 
     Box(
@@ -455,6 +454,7 @@ fun SkyMapFull(
             val center = Offset(size.width / 2, size.height / 2)
             val radius = size.minDimension / 2 - 16.dp.toPx()
 
+            // Draw background and compass
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(Color(0xFF0D1A33), Color(0xFF0B0C1A), Color.Black),
@@ -464,6 +464,7 @@ fun SkyMapFull(
                 size = size
             )
 
+            // Draw range circles and compass directions
             for (i in 1..3) drawCircle(
                 Color.LightGray.copy(alpha = 0.4f),
                 radius * i / 3,
@@ -471,20 +472,16 @@ fun SkyMapFull(
                 style = Stroke(width = 1.5f)
             )
 
-            val directions = listOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+            val directions = listOf("N","NE","E","SE","S","SW","W","NW")
             for (i in directions.indices) {
                 val angle = Math.toRadians(i * 45.0)
                 val x = center.x + radius * sin(angle).toFloat()
                 val y = center.y - radius * cos(angle).toFloat()
-                drawLine(Color.LightGray.copy(alpha = 0.3f), center, Offset(x, y), 1f)
-                drawContext.canvas.nativeCanvas.drawText(
-                    directions[i],
-                    x + 8,
-                    y - 8,
-                    directionPaint
-                )
+                drawLine(Color.LightGray.copy(alpha = 0.3f), center, Offset(x,y), 1f)
+                drawContext.canvas.nativeCanvas.drawText(directions[i], x + 8, y - 8, directionPaint)
             }
 
+            //sat drawing
             satellites.filter { it.cn0 > 0 }.forEach { sat ->
                 val elRad = Math.toRadians(90.0 - sat.elevation)
                 val azRad = Math.toRadians(sat.azimuth.toDouble())
@@ -492,25 +489,55 @@ fun SkyMapFull(
                 val x = center.x + (r * sin(azRad)).toFloat()
                 val y = center.y - (r * cos(azRad)).toFloat()
 
+                if (sat.svid == selectedSvid) {
+                    val steps = 25
+                    val azInc = (sat.doppler / 100.0).toFloat()
+                    val elInc = (sat.doppler / 1000.0).coerceIn(-0.1, 0.1).toFloat()
+
+                    val trailPoints = mutableListOf<Offset>()
+                    trailPoints.add(Offset(x, y))
+
+                    var currentAz = sat.azimuth
+                    var currentEl = sat.elevation
+
+                    for (i in 0 until steps) {
+                        currentEl = (currentEl + elInc).coerceIn(0f, 90f)
+                        currentAz = (currentAz + azInc) % 360f
+
+                        val futureElRad = Math.toRadians(90.0 - currentEl)
+                        val futureAzRad = Math.toRadians(currentAz.toDouble())
+                        val futureR = radius * (futureElRad / Math.PI)
+                        val trailX = center.x + (futureR * sin(futureAzRad)).toFloat()
+                        val trailY = center.y - (futureR * cos(futureAzRad)).toFloat()
+                        trailPoints.add(Offset(trailX, trailY))
+                    }
+
+                    for (i in 0 until trailPoints.size - 1) {
+                        val alpha = 0.6f * (1f - i.toFloat() / trailPoints.size)
+                        drawLine(Color.Blue.copy(alpha = alpha), trailPoints[i], trailPoints[i + 1], 2f)
+                    }
+
+                    // x = trailPoints[0].x
+                    // y = trailPoints[0].y
+                }
                 val color = when {
                     sat.cn0 >= 30 -> Color.Green
                     sat.cn0 >= 25 -> Color.Yellow
                     sat.cn0 >= 20 -> Color(0xFFFF5722)
                     else -> Color.Red
                 }
-
                 val dotSize = 4f + (sat.cn0.toFloat() / 10f)
                 val finalSize = if (sat.svid == selectedSvid) dotSize * scale else dotSize
-                val finalColor = color
 
-                if (sat.fix) drawCircle(finalColor, finalSize, Offset(x, y))
-                else drawCircle(finalColor, finalSize, Offset(x, y), style = Stroke(width = 2f))
+                if (sat.fix) drawCircle(color, finalSize, Offset(x, y))
+                else drawCircle(color, finalSize, Offset(x, y), style = Stroke(width = 2f))
 
                 drawContext.canvas.nativeCanvas.drawText("${sat.svid}", x + 10, y - 10, satPaint)
             }
         }
     }
 }
+
 
 fun constellationName(constellation: Int): String {
     return when (constellation) {

@@ -5,6 +5,7 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import androidx.annotation.RequiresPermission
+import com.example.antLabs.BuildConfig
 import com.example.antLabs.engine.ECEFEngine.ECEFDistanceWorker
 import com.example.antLabs.engine.SatelliteResponse
 import com.example.antLabs.satmaps.beidouSvidToNorad
@@ -14,14 +15,9 @@ import com.example.antLabs.satmaps.gpsSvidToNorad
 import com.example.antLabs.views.ApiResponseGroup
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
-import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.json.Json
 
 /**
  * ApiService handles fetching satellite positions from the N2YO API
@@ -45,9 +41,9 @@ object ApiService {
         constellation: Int,
         userAltKm: Double = 0.0,
     ): ApiResponseGroup? {
-
+        val APIKEY = BuildConfig.APIKEY
         // --- Filter out unsupported satellites ---
-        if (constellation != 1 && constellation != 3 && constellation != 5 && constellation != 6) return null // Only GPS or Beidou
+        if (constellation != 1 && constellation != 3 && constellation != 5 && constellation != 6) return null
 
         // Map GNSS SVID to NORAD ID for API query
         val satId: Int = when (constellation) {
@@ -83,16 +79,12 @@ object ApiService {
         }
 
         // --- Set up HTTP client ---
-        val client = HttpClient(OkHttp) {
-            install(ContentNegotiation.Plugin) {
-                json(Json { ignoreUnknownKeys = true }) // Ignore unknown JSON keys
-            }
-        }
+        val client = KtorClientWrapper.http
 
         return try {
             // Build API URL using NORAD ID and user location
             val url =
-                "https://api.n2yo.com/rest/v1/satellite/positions/$satId/${location.latitude}/${location.longitude}/$userAltKm/1/&apiKey=P5SBR8-AMPS6R-XNXR4U-5KD3"
+                "https://api.n2yo.com/rest/v1/satellite/positions/$satId/${location.latitude}/${location.longitude}/$userAltKm/1/&apiKey=$APIKEY"
             Log.d("APIRQ", url)
 
             // Make API call and deserialize response into SatelliteResponse
@@ -114,8 +106,6 @@ object ApiService {
             // Log any API/network errors
             Log.e("SAT_DIST", "API call failed", e)
             null
-        } finally {
-            client.close() // Always close HTTP client to free resources
         }
     }
 }
