@@ -1,7 +1,7 @@
 # antGnss: Advanced GNSS Satellite Monitoring for Android
 
 [![UI](https://img.shields.io/badge/UI-Jetpack%20Compose-green.svg?style=flat-square)](https://developer.android.com/jetpack/compose)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-CC-NC-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 <p align="center">
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="antGnss App Logo" width="150"/>
